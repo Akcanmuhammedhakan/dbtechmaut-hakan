@@ -117,4 +117,3 @@ public class Mautabschnitt {
 
 }
 
-/test2
