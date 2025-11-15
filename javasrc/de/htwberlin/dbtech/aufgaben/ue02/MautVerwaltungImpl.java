@@ -1,4 +1,3 @@
-// Java
 package de.htwberlin.dbtech.aufgaben.ue02;
 
 import java.sql.Connection;
@@ -14,6 +13,25 @@ import de.htwberlin.dbtech.exceptions.DataException;
 public class MautVerwaltungImpl implements IMautVerwaltung {
 
     private static final Logger L = LoggerFactory.getLogger(MautVerwaltungImpl.class);
+
+    // SQL-Konstanten
+    private static final String SQL_GET_STATUS_OBU = "SELECT STATUS FROM FAHRZEUGGERAT WHERE FZG_ID = ?";
+    private static final String SQL_GET_USERNUMBER =
+            "SELECT f.NUTZER_ID " +
+            "FROM MAUTERHEBUNG m " +
+            "JOIN FAHRZEUGGERAT g ON m.FZG_ID = g.FZG_ID " +
+            "JOIN FAHRZEUG f ON g.FZ_ID = f.FZ_ID " +
+            "WHERE m.MAUT_ID = ?";
+    private static final String SQL_REGISTER_VEHICLE =
+            "INSERT INTO FAHRZEUG (FZ_ID, SSKL_ID, NUTZER_ID, KENNZEICHEN, FIN, ACHSEN, GEWICHT, ANMELDEDATUM, ZULASSUNGSLAND) " +
+            "VALUES (?,?,?,?,?,?,?,SYSDATE,?)";
+    private static final String SQL_UPDATE_OBU_STATUS = "UPDATE FAHRZEUGGERAT SET STATUS = ? WHERE FZG_ID = ?";
+    private static final String SQL_DELETE_OBU = "DELETE FROM FAHRZEUGGERAT WHERE FZ_ID = ?";
+    private static final String SQL_DELETE_VEHICLE = "DELETE FROM FAHRZEUG WHERE FZ_ID = ?";
+    private static final String SQL_GET_TRACK_INFOS =
+            "SELECT ABSCHNITTS_ID, LAENGE, START_KOORDINATE, ZIEL_KOORDINATE, NAME, ABSCHNITTSTYP " +
+            "FROM MAUTABSCHNITT WHERE ABSCHNITTSTYP = ? ORDER BY ABSCHNITTS_ID";
+
     private Connection connection;
 
     @Override
@@ -30,8 +48,7 @@ public class MautVerwaltungImpl implements IMautVerwaltung {
 
     @Override
     public String getStatusForOnBoardUnit(long fzg_id) {
-        final String sql = "SELECT STATUS FROM FAHRZEUGGERAT WHERE FZG_ID = ?";
-        try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+        try (PreparedStatement ps = getConnection().prepareStatement(SQL_GET_STATUS_OBU)) {
             ps.setLong(1, fzg_id);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? rs.getString(1) : null;
@@ -44,13 +61,7 @@ public class MautVerwaltungImpl implements IMautVerwaltung {
 
     @Override
     public int getUsernumber(int maut_id) {
-        final String sql =
-                "SELECT f.NUTZER_ID " +
-                "FROM MAUTERHEBUNG m " +
-                "JOIN FAHRZEUGGERAT g ON m.FZG_ID = g.FZG_ID " +
-                "JOIN FAHRZEUG f ON g.FZ_ID = f.FZ_ID " +
-                "WHERE m.MAUT_ID = ?";
-        try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+        try (PreparedStatement ps = getConnection().prepareStatement(SQL_GET_USERNUMBER)) {
             ps.setInt(1, maut_id);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return rs.getInt(1);
@@ -66,11 +77,7 @@ public class MautVerwaltungImpl implements IMautVerwaltung {
     public void registerVehicle(long fz_id, int sskl_id, int nutzer_id,
                                 String kennzeichen, String fin, int achsen,
                                 int gewicht, String zulassungsland) {
-        final String sql =
-                "INSERT INTO FAHRZEUG " +
-                        "(FZ_ID, SSKL_ID, NUTZER_ID, KENNZEICHEN, FIN, ACHSEN, GEWICHT, ANMELDEDATUM, ZULASSUNGSLAND) " +
-                        "VALUES (?,?,?,?,?,?,?,SYSDATE,?)";
-        try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+        try (PreparedStatement ps = getConnection().prepareStatement(SQL_REGISTER_VEHICLE)) {
             ps.setLong(1, fz_id);
             ps.setInt(2, sskl_id);
             ps.setInt(3, nutzer_id);
@@ -88,8 +95,7 @@ public class MautVerwaltungImpl implements IMautVerwaltung {
 
     @Override
     public void updateStatusForOnBoardUnit(long fzg_id, String status) {
-        final String sql = "UPDATE FAHRZEUGGERAT SET STATUS = ? WHERE FZG_ID = ?";
-        try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+        try (PreparedStatement ps = getConnection().prepareStatement(SQL_UPDATE_OBU_STATUS)) {
             ps.setString(1, status);
             ps.setLong(2, fzg_id);
             ps.executeUpdate();
@@ -101,11 +107,9 @@ public class MautVerwaltungImpl implements IMautVerwaltung {
 
     @Override
     public void deleteVehicle(long fz_id) {
-        // FK-Reihenfolge beachten: erst abhängiges FAHRZEUGGERAT, dann FAHRZEUG
-        final String delObu = "DELETE FROM FAHRZEUGGERAT WHERE FZ_ID = ?";
-        final String delFzg = "DELETE FROM FAHRZEUG WHERE FZ_ID = ?";
-        try (PreparedStatement p1 = getConnection().prepareStatement(delObu);
-             PreparedStatement p2 = getConnection().prepareStatement(delFzg)) {
+
+        try (PreparedStatement p1 = getConnection().prepareStatement(SQL_DELETE_OBU);
+             PreparedStatement p2 = getConnection().prepareStatement(SQL_DELETE_VEHICLE)) {
             p1.setLong(1, fz_id);
             p1.executeUpdate();
             p2.setLong(1, fz_id);
@@ -118,16 +122,20 @@ public class MautVerwaltungImpl implements IMautVerwaltung {
 
     @Override
     public List<Mautabschnitt> getTrackInformations(String abschnittstyp) {
-        final String sql =
-                "SELECT ABSCHNITTS_ID " +
-                        "FROM MAUTABSCHNITT WHERE ABSCHNITTSTYP = ? ORDER BY ABSCHNITTS_ID";
         List<Mautabschnitt> liste = new ArrayList<>();
-        try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+        try (PreparedStatement ps = getConnection().prepareStatement(SQL_GET_TRACK_INFOS)) {
             ps.setString(1, abschnittstyp);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    // Objekt anlegen; Felder nur setzen, falls noetig/verfügbar
-                    liste.add(new Mautabschnitt());
+                    Mautabschnitt m = new Mautabschnitt();
+                    m.setAbschnitts_id(rs.getInt("ABSCHNITTS_ID"));
+                    double laengeDb = rs.getDouble("LAENGE");
+                    m.setLaenge((int) Math.round(laengeDb));
+                    m.setStart_koordinate(rs.getString("START_KOORDINATE"));
+                    m.setZiel_koordinate(rs.getString("ZIEL_KOORDINATE"));
+                    m.setName(rs.getString("NAME"));
+                    m.setAbschnittstyp(rs.getString("ABSCHNITTSTYP"));
+                    liste.add(m);
                 }
             }
             return liste;
