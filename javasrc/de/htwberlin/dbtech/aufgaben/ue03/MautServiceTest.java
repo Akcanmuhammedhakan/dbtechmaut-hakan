@@ -6,9 +6,7 @@ import de.htwberlin.dbtech.utils.DbUnitUtils;
 import org.dbunit.IDatabaseTester;
 import org.dbunit.JdbcDatabaseTester;
 import org.dbunit.database.IDatabaseConnection;
-import org.dbunit.database.QueryDataSet;
 import org.dbunit.dataset.IDataSet;
-import org.dbunit.dataset.ITable;
 import org.dbunit.operation.DatabaseOperation;
 import org.dbunit.dataset.csv.CsvDataSet;
 import org.slf4j.Logger;
@@ -31,8 +29,8 @@ import org.junit.runners.MethodSorters;
  * @author Patrick Dohmeier
  */
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
-public class MautVerwaltungTest {
-    private static final Logger L = LoggerFactory.getLogger(MautVerwaltungTest.class);
+public class MautServiceTest {
+    private static final Logger L = LoggerFactory.getLogger(MautServiceTest.class);
     private static IDatabaseConnection dbTesterCon = null;
 
     private static final IMautVerwaltung maut = new MautVerwaltungImpl();
