@@ -38,7 +38,6 @@ public class MautServiceImpl implements IMautService {
         return connection;
     }
 
-    // --- Hilfstypen & Hilfsmethoden (keine Hardcodings) ---
     private static final class Kategorie {
         final int id;
         final double satzCentProKm;
