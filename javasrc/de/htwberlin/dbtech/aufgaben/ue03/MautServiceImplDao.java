@@ -15,12 +15,12 @@ import java.sql.Connection;
 public class MautServiceImplDao implements IMautService {
 
     private Connection connection;
-    private IFahrzeugDao fahrzeugDao = new FahrzeugDaoJdbc();
-    private IFahrzeuggeratDao fahrzeuggeratDao = new FahrzeuggeratDaoJdbc();
-    private IBuchungDao buchungDao = new BuchungDaoJdbc();
-    private IMautabschnittDao mautabschnittDao = new MautabschnittDaoJdbc();
-    private IMautkategorieDao mautkategorieDao = new MautkategorieDaoJdbc();
-    private IMauterhebungDao mauterhebungDao = new MauterhebungDaoJdbc();
+    private final IFahrzeugDao fahrzeugDao = new FahrzeugDaoJdbc();
+    private final IFahrzeuggeratDao fahrzeuggeratDao = new FahrzeuggeratDaoJdbc();
+    private final IBuchungDao buchungDao = new BuchungDaoJdbc();
+    private final IMautabschnittDao mautabschnittDao = new MautabschnittDaoJdbc();
+    private final IMautkategorieDao mautkategorieDao = new MautkategorieDaoJdbc();
+    private final IMauterhebungDao mauterhebungDao = new MauterhebungDaoJdbc();
 
     @Override
     public void setConnection(Connection connection) {
@@ -48,37 +48,54 @@ public class MautServiceImplDao implements IMautService {
         boolean manuell = buchungDao.existsOffeneBuchungByKennzeichen(kennzeichen);
 
         if (automatik) {
-            // Achsprüfung Automatik
-            boolean axlesOk = (v.achsen <= 4) ? (achszahl == v.achsen) : (achszahl >= 5);
-            if (!axlesOk) throw new InvalidVehicleDataException();
+            // Achsprüfung Automatik (zentralisierte Logik)
+            if (!validateAxlesForVehicle(achszahl, v)) throw new InvalidVehicleDataException();
 
             int laengeM = mautabschnittDao.getLaenge(mautAbschnitt);
             double km = laengeM / 1000.0d;
-            String achsKey = (achszahl >= 5) ? ">= 5" : "= " + achszahl;
+            String achsKey = buildAchsKeyFromNumber(achszahl);
             KategorieRow kat = mautkategorieDao.findBySsklAndAchsRule(v.ssklId, achsKey);
-            if (kat == null) throw new DataException("Keine Kategorie gefunden");
+            if (kat == null) throw new DataException(MautConstants.ERR_NO_CATEGORY);
             BigDecimal kostenEuro = BigDecimal.valueOf(kat.satzCentProKm)
                     .multiply(BigDecimal.valueOf(km))
-                    .divide(BigDecimal.valueOf(100), 10, RoundingMode.HALF_UP)
-                    .setScale(2, RoundingMode.HALF_UP);
+                    .divide(BigDecimal.valueOf(MautConstants.CENT_PER_EURO), 10, RoundingMode.HALF_UP)
+                    .setScale(MautConstants.CURRENCY_SCALE, MautConstants.CURRENCY_ROUNDING);
             long mautId = mauterhebungDao.nextMautId();
             mauterhebungDao.insert(mautId, mautAbschnitt, fzgId, kat.kategorieId, kostenEuro);
-            return;
         } else if (manuell) {
             BuchungRow b = buchungDao.findOffeneBuchungForAbschnitt(kennzeichen, mautAbschnitt);
             if (b == null) throw new AlreadyCruisedException();
             String bookedAchsRule = mautkategorieDao.findAchsRuleByKategorieId(b.kategorieId);
-            boolean axlesOk;
-            if (">= 5".equals(bookedAchsRule)) axlesOk = (achszahl >= 5);
-            else if (bookedAchsRule != null && bookedAchsRule.startsWith("= "))
-                axlesOk = (achszahl == Integer.parseInt(bookedAchsRule.substring(2).trim()));
-            else axlesOk = false;
-            if (!axlesOk) throw new InvalidVehicleDataException();
+            if (!validateAxlesAgainstRule(achszahl, bookedAchsRule)) throw new InvalidVehicleDataException();
             buchungDao.finalizeBuchung(b.buchungId);
-            return;
         } else {
             throw new UnkownVehicleException();
         }
     }
-}
 
+    // ...Hilfsmethoden zum Zentralisieren der Achs-Logik...
+    private boolean validateAxlesForVehicle(int achszahl, VehicleRow v) {
+        if (v == null) return false;
+        // wenn Fahrzeug echte Achsanzahl <=4 dann exakte Übereinstimmung, ansonsten >=5
+        return (v.achsen <= 4) ? (achszahl == v.achsen) : (achszahl >= 5);
+    }
+
+    private String buildAchsKeyFromNumber(int achszahl) {
+        return (achszahl >= 5) ? MautConstants.ACHS_RULE_GE_5 : (MautConstants.ACHS_RULE_EQ_PREFIX + achszahl);
+    }
+
+    private boolean validateAxlesAgainstRule(int achszahl, String rule) {
+        if (rule == null) return false;
+        if (MautConstants.ACHS_RULE_GE_5.equals(rule)) return achszahl >= 5;
+        if (rule.startsWith(MautConstants.ACHS_RULE_EQ_PREFIX)) {
+            try {
+                int expected = Integer.parseInt(rule.substring(MautConstants.ACHS_RULE_EQ_PREFIX.length()).trim());
+                return achszahl == expected;
+            } catch (NumberFormatException e) {
+                return false;
+            }
+        }
+        return false;
+    }
+
+}

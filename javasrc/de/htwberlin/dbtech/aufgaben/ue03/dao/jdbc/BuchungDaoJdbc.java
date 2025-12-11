@@ -2,6 +2,7 @@ package de.htwberlin.dbtech.aufgaben.ue03.dao.jdbc;
 
 import de.htwberlin.dbtech.aufgaben.ue03.dao.IBuchungDao;
 import de.htwberlin.dbtech.aufgaben.ue03.dao.rows.BuchungRow;
+import de.htwberlin.dbtech.aufgaben.ue03.MautConstants;
 import de.htwberlin.dbtech.exceptions.DataException;
 
 import java.sql.*;
@@ -24,7 +25,7 @@ public class BuchungDaoJdbc implements IBuchungDao {
 
     @Override
     public boolean existsOffeneBuchungByKennzeichen(String kennzeichen) {
-        int offen = statusId("offen");
+        int offen = statusId(MautConstants.STATUS_OFFEN);
         String sql = "SELECT 1 FROM BUCHUNG WHERE TRIM(KENNZEICHEN) = ? AND B_ID = ?";
         try (PreparedStatement ps = connection.prepareStatement(sql)) {
             ps.setString(1, kennzeichen == null ? null : kennzeichen.trim());
@@ -35,7 +36,7 @@ public class BuchungDaoJdbc implements IBuchungDao {
 
     @Override
     public BuchungRow findOffeneBuchungForAbschnitt(String kennzeichen, int abschnittId) {
-        int offen = statusId("offen");
+        int offen = statusId(MautConstants.STATUS_OFFEN);
         String sql = "SELECT BUCHUNG_ID, KATEGORIE_ID FROM BUCHUNG WHERE TRIM(KENNZEICHEN) = ? AND ABSCHNITTS_ID = ? AND B_ID = ?";
         try (PreparedStatement ps = connection.prepareStatement(sql)) {
             ps.setString(1, kennzeichen == null ? null : kennzeichen.trim());
@@ -55,7 +56,7 @@ public class BuchungDaoJdbc implements IBuchungDao {
 
     @Override
     public void finalizeBuchung(long buchungId) {
-        int abgeschlossen = statusId("abgeschlossen");
+        int abgeschlossen = statusId(MautConstants.STATUS_ABGESCHLOSSEN);
         String sql = "UPDATE BUCHUNG SET B_ID = ?, BEFAHRUNGSDATUM = SYSDATE WHERE BUCHUNG_ID = ?";
         try (PreparedStatement ps = connection.prepareStatement(sql)) {
             ps.setInt(1, abgeschlossen);

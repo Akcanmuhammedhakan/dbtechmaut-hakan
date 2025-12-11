@@ -124,8 +124,8 @@ public class MautServiceImpl implements IMautService {
 
         // 3) Prüfen, ob manuelles Verfahren (irgendeine offene Buchung fuer das Fahrzeug)
         boolean manuell = false;
-        final int statusOffen = ladeBuchungsstatusId("offen");
-        final int statusAbgeschlossen = ladeBuchungsstatusId("abgeschlossen");
+        final int statusOffen = ladeBuchungsstatusId(MautConstants.STATUS_OFFEN);
+        final int statusAbgeschlossen = ladeBuchungsstatusId(MautConstants.STATUS_ABGESCHLOSSEN);
         try (PreparedStatement ps = getConnection().prepareStatement(
                 "SELECT 1 FROM BUCHUNG WHERE TRIM(KENNZEICHEN) = ? AND B_ID = ?")) {
             ps.setString(1, kennzeichen == null ? null : kennzeichen.trim());
@@ -169,8 +169,8 @@ public class MautServiceImpl implements IMautService {
             // 4c) Kosten berechnen: Cents -> Euro, auf 2 Nachkommastellen runden
             BigDecimal kostenEuro = BigDecimal.valueOf(grpMessung.satzCentProKm)
                     .multiply(BigDecimal.valueOf(km))
-                    .divide(BigDecimal.valueOf(100), 10, RoundingMode.HALF_UP)
-                    .setScale(2, RoundingMode.HALF_UP);
+                    .divide(BigDecimal.valueOf(MautConstants.CENT_PER_EURO), 10, RoundingMode.HALF_UP)
+                    .setScale(MautConstants.CURRENCY_SCALE, MautConstants.CURRENCY_ROUNDING);
 
             // 4d) neue MAUTERHEBUNG anlegen mit neuer MAUT_ID
             long newMautId = 0L;
@@ -181,7 +181,7 @@ public class MautServiceImpl implements IMautService {
 
             try (PreparedStatement ps = getConnection().prepareStatement(
                     "INSERT INTO MAUTERHEBUNG (MAUT_ID, ABSCHNITTS_ID, FZG_ID, KATEGORIE_ID, BEFAHRUNGSDATUM, KOSTEN) " +
-                    "VALUES (?,?,?,?, SYSDATE, ?)")) {
+                    "VALUES (?,?,?,?, SYSDATE, ?)") ) {
                 ps.setLong(1, newMautId);
                 ps.setInt(2, mautAbschnitt);
                 ps.setLong(3, fzgId);
